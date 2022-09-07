@@ -1,0 +1,58 @@
+default:
+  retry:
+    max: 1
+
+services:
+  - name: docker:20.10-dind
+
+variables:
+  GIT_SUBMODULE_STRATEGY: normal
+  DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: 1
+  BUILDKIT_INLINE_CACHE: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_CLIENT_TIMEOUT: 360
+  COMPOSE_HTTP_TIMEOUT: 360
+
+stages:
+  - release
+  - publish
+  - cleanup
+
+release-job:
+  stage: release
+  image: $CI_REGISTRY/tchooz-product/emundus-semantic-release:latest
+  script:
+    - semantic-release
+  artifacts:
+    reports:
+      dotenv: release.env
+  only:
+    - main
+  except:
+    - schedule
+
+publish-job:
+  stage: publish
+  image: docker:20.10
+  before_script: 
+    - echo $CI_REGISTRY_PASSWORD | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker build -t $CI_REGISTRY/tchooz-tools/scr-lifecycle-policy:latest -t $CI_REGISTRY/tchooz-tools/scr-lifecycle-policy:$NEW_VERSION .
+    - docker push $CI_REGISTRY/tchooz-tools/scr-lifecycle-policy:$NEW_VERSION
+    - docker push $CI_REGISTRY/tchooz-tools/scr-lifecycle-policy:latest
+  needs:
+    - release-job
+  only:
+    - main
+  except:
+    - schedule
+
+cleanup-job:
+  stage: cleanup
+  image: $CI_REGISTRY/tchooz-tools/scr-lifecycle-policy:latest
+  script:
+    - python3 scr-lifecycle-policy.py --token $CI_REGISTRY_PASSWORD --image-id $IMAGE_ID --grace $GRACE_PERIOD --dry-run no
+  only:
+    - schedule
