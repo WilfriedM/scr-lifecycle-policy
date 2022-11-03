@@ -1,5 +1,5 @@
 FROM python:3.10-bullseye
-LABEL maintainer="DevOps Team <devops@emundus.io>"
+LABEL maintainer="Wilfried Maillet <wilfried.maillet@emundus.fr>"
 
 COPY scr-lifecycle-policy.py .
 COPY requirements.txt .
